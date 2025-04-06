@@ -105,3 +105,39 @@ class CustomSemanticSegmentationTask(SemanticSegmentationTask):
                 f"image/val/{batch_idx}", fig, global_step=self.global_step
             )
             plt.close()
+
+    def test_step(self, *args, **kwargs):
+        batch = args[0]
+        batch_idx = args[1]
+
+        x = batch["image"]
+        y = batch["mask"]
+        y_hat = self.forward(x)
+        y_hat_hard = y_hat.argmax(dim=1)
+
+        loss = self.criterion(y_hat, y)
+        self.log("test_loss", loss, on_step=False, on_epoch=True)
+
+        self.test_metrics(y_hat_hard, y)
+        self.log_dict(self.test_metrics, on_step=False, on_epoch=True)
+
+        self.logged_test_images = getattr(self, 'logged_test_images', 0)
+
+        # Plot total of 50 samples
+        if self.logged_test_images < 50:
+            batch["prediction"] = y_hat_hard
+            for key in ["image", "mask", "prediction"]:
+                batch[key] = batch[key].cpu()
+            sample = unbind_samples(batch)[0]
+            fig = self.plot(sample)
+
+            summary_writer = self.logger.experiment
+            summary_writer.add_figure(
+                f"image/test/{self.logged_test_images}", fig, global_step=self.global_step
+            )
+            plt.close()
+            self.logged_test_images += 1
+
+
+
+

@@ -7,18 +7,23 @@ from .task import CustomSemanticSegmentationTask
 from .datamodule import KH9CdDataModule
 
 
-def train(old_images_dir, new_images_dir, bag_buildings_dir,experiment_name, experiment_dir, log_dir, model, backbone, batch_size, patch_size, learning_rate, num_dataloader_workers, val_split_pct, checkpoint_name):
-    
+def train(old_images_dir, new_images_dir, bag_buildings_dir, experiment_name,
+          experiment_dir, log_dir, model, backbone, batch_size, patch_size,
+          learning_rate, num_dataloader_workers, val_split_pct, test_split_pct,
+          checkpoint_name, aoi):
+
     os.makedirs(experiment_dir, exist_ok=True)
     torch.set_float32_matmul_precision('medium')
     datamodule = KH9CdDataModule(
-        old_images_dir = old_images_dir,
-        new_images_dir = new_images_dir,
-        bag_buildings_dir = bag_buildings_dir,
-        batch_size = batch_size,
-        num_workers = num_dataloader_workers,
-        patch_size = patch_size,
-        val_split_pct = val_split_pct
+        old_images_dir=old_images_dir,
+        new_images_dir=new_images_dir,
+        bag_buildings_dir=bag_buildings_dir,
+        batch_size=batch_size,
+        num_workers=num_dataloader_workers,
+        patch_size=patch_size,
+        val_split_pct=val_split_pct,
+        test_split_pct=test_split_pct,
+        aoi=aoi,
     )
 
     task = CustomSemanticSegmentationTask(
