@@ -5,6 +5,7 @@ from torchgeo.datasets.utils import BoundingBox
 
 from src.train import train
 from src.test import test
+from src.predict import predict
 
 
 def read_aoi(path):
@@ -15,16 +16,16 @@ def read_aoi(path):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("mode", choices=["train", "test"],
-                        help="Choose whether to train or test the model.")
+    parser.add_argument("mode", choices=["train", "test", "predict"])
     args = parser.parse_args()
 
     experiment_name = 'with_aois'
     experiment_dir = os.path.join('C:/masterarbeit/code/results', experiment_name)
-    aoi = read_aoi('C:/masterarbeit/vector/aois.gpkg')
+    # aoi = read_aoi('C:/masterarbeit/vector/aois.gpkg')
 
-    # aoi_city_centre = BoundingBox(minx=118637.7735100609570509, maxx=123819.5269524390459992,
-    #                               miny=483705.8844411586178467, maxy=488492.1146832318045199, mint=0, maxt=1)
+    aoi_city_centre = BoundingBox(minx=118637.7735100609570509, maxx=123819.5269524390459992,
+                                  miny=483705.8844411586178467, maxy=488492.1146832318045199, mint=0, maxt=1)
+    aoi_test_small = BoundingBox(119736.8306800332211424,120771.4748695194866741,487192.3094612115528435,487754.0150268116849475,0,1)
 
     # Parameters shared by train and test
     config = {
@@ -40,8 +41,8 @@ if __name__ == "__main__":
         "num_dataloader_workers": 4,
         "val_split_pct": 0.2,
         "test_split_pct": 0.1,
-        "checkpoint_name": None,
-        "aoi": aoi,
+        "checkpoint_name": 'last.ckpt',
+        "aoi": aoi_city_centre,
     }
 
     if args.mode == "train":
@@ -51,3 +52,5 @@ if __name__ == "__main__":
             **config)
     elif args.mode == "test":
         test(**config)
+    elif args.mode =="predict":
+        predict(**config)

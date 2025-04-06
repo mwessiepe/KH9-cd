@@ -1,6 +1,9 @@
-from torchgeo.trainers import SemanticSegmentationTask
+import os
+import rasterio
+from rasterio.transform import from_bounds
 import matplotlib.pyplot as plt
 
+from torchgeo.trainers import SemanticSegmentationTask
 from torchgeo.datasets import unbind_samples
 
 
@@ -138,6 +141,47 @@ class CustomSemanticSegmentationTask(SemanticSegmentationTask):
             plt.close()
             self.logged_test_images += 1
 
+
+
+    def predict_step(self, batch, batch_idx, dataloader_idx=0):
+        x = batch["image"]
+        y_hat = self(x)
+        y_hat_hard = y_hat.argmax(dim=1)  # [B, H, W]
+
+        # Move prediction to CPU
+        preds = y_hat_hard.cpu()
+
+        # Define the directory for saving predictions
+        predictions_dir = "C:\masterarbeit\code\predictions"
+        os.makedirs(predictions_dir, exist_ok=True)
+
+        for i, sample in enumerate(unbind_samples({**batch, "prediction": preds})):
+            prediction = sample["prediction"].numpy().astype("uint8")
+            bounds = sample["bounds"]
+            crs = sample["crs"]
+
+            # Compute the affine transformation
+            transform = from_bounds(bounds.minx, bounds.miny, bounds.maxx, bounds.maxy,
+                                    prediction.shape[1], prediction.shape[0])
+
+            # Build file path
+            output_path = os.path.join(predictions_dir, f"pred_{batch_idx:04}_{i}.tif")
+
+            # Save prediction as GeoTIFF
+            with rasterio.open(
+                output_path,
+                "w",
+                driver="GTiff",
+                height=prediction.shape[0],
+                width=prediction.shape[1],
+                count=1,
+                dtype="uint8",
+                crs=crs,
+                transform=transform,
+            ) as dst:
+                dst.write(prediction, 1)
+
+        return preds
 
 
 
