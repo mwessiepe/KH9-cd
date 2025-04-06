@@ -1,13 +1,13 @@
 
-# 🏗️ Building Change Detection with TorchGeo
+# Building Change Detection with TorchGeo
 
-## 📌 Overview
+## Overview
 
 This project detects **building changes** over time by comparing historical KH-9 satellite images with recent aerial imagery. It uses **semantic segmentation** with a **UNet** model trained using **TorchGeo** and **PyTorch Lightning**.
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 .
@@ -24,7 +24,7 @@ This project detects **building changes** over time by comparing historical KH-9
 
 ---
 
-## 📦 Dataset Description
+## Dataset Description
 
 Three main dataset classes are used:
 
@@ -43,7 +43,7 @@ These datasets are combined using `IntersectionDataset`.
 
 ---
 
-## 🔁 DataModule (`KH9CdDataModule`)
+## DataModule (`KH9CdDataModule`)
 
 Defined in `src/datamodule.py`. This module:
 
@@ -62,7 +62,7 @@ Defined in `src/datamodule.py`. This module:
 
 ---
 
-## 🧠 Model (`CustomSemanticSegmentationTask`)
+## Model (`CustomSemanticSegmentationTask`)
 
 A custom subclass of `SemanticSegmentationTask` located in `src/task.py`. Key components:
 
@@ -75,7 +75,7 @@ A custom subclass of `SemanticSegmentationTask` located in `src/task.py`. Key co
 
 ---
 
-## 🚂 Training (`train.py`)
+## Training (`train.py`)
 
 The training loop is encapsulated in a `train()` function and launched from `main.py`.
 
@@ -87,12 +87,12 @@ The training loop is encapsulated in a `train()` function and launched from `mai
 
 ### Launch example
 ```bash
-python main.py
+& C:/Users/Anwender/miniforge3/envs/torchgeo/python.exe C:\masterarbeit\code\main.py train
 ```
 
 ---
 
-## ✅ Testing (`test.py`)
+## Testing (`test.py`)
 
 The test script loads a model from checkpoint and computes:
 - **Precision**
@@ -119,7 +119,7 @@ test(
 
 ---
 
-## 💾 Checkpointing
+## Checkpointing
 
 During training, models are saved to:
 ```
@@ -137,7 +137,7 @@ task = CustomSemanticSegmentationTask.load_from_checkpoint("path/to/last.ckpt")
 
 ---
 
-## 📊 TensorBoard
+## TensorBoard
 
 To monitor training visually:
 
@@ -150,26 +150,3 @@ Logged:
 - Visual patches from input, masks, predictions
 
 ---
-
-## 🛠 Tips
-
-- For better GPU usage, try increasing `batch_size` if RAM allows.
-- `RandomGeoSampler(length=N)` controls how many patches are sampled each epoch.
-- Keep `ignore_index=99` for all masked-out areas.
-
----
-
-## ✅ Dependencies
-
-- Python 3.10
-- torchgeo
-- pytorch-lightning
-- matplotlib
-- scikit-learn
-- tqdm
-
-Install `scikit-learn` via conda:
-
-```bash
-conda install -c conda-forge scikit-learn
-```
