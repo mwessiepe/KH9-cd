@@ -6,13 +6,13 @@ from sklearn.metrics import precision_score, recall_score, f1_score
 from lightning.pytorch import Trainer
 from lightning.pytorch.loggers import TensorBoardLogger
 
-from src.task import CustomSemanticSegmentationTask
+from src.task import CustomSemanticSegmentationTask, ChangeStarFarSegTask
 from src.datamodule import KH9CdDataModule
 
 
 def test(old_images_dir, new_images_dir, bag_buildings_dir, experiment_name,
          experiment_dir, log_dir, batch_size, patch_size, learning_rate,
-         num_dataloader_workers, val_split_pct, test_split_pct, checkpoint_name, aoi):
+         num_dataloader_workers, val_split_pct, test_split_pct, checkpoint_name, aoi, task):
 
     torch.set_float32_matmul_precision('medium')
 
@@ -31,7 +31,10 @@ def test(old_images_dir, new_images_dir, bag_buildings_dir, experiment_name,
 
     # Load the trained model from the checkpoint
     checkpoint_path = os.path.join(experiment_dir, checkpoint_name)
-    task = CustomSemanticSegmentationTask.load_from_checkpoint(checkpoint_path)
+    if task == 'baseline':
+        task = CustomSemanticSegmentationTask.load_from_checkpoint(checkpoint_path)
+    elif task == 'ChangeStarFarSeg':
+        task = ChangeStarFarSegTask.load_from_checkpoint(checkpoint_path)
     task.eval()  # Set the model to evaluation mode
 
     # Initialize TensorBoard logger
@@ -48,34 +51,34 @@ def test(old_images_dir, new_images_dir, bag_buildings_dir, experiment_name,
     )
     trainer.test(model=task, datamodule=datamodule)
 
-    # Compute additional metrics:
-    # Move model to eval mode and device
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = task.model.to(device).eval()
+    # # Compute additional metrics:
+    # # Move model to eval mode and device
+    # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # model = task.model.to(device).eval()
 
-    y_preds = []
-    y_trues = []
+    # y_preds = []
+    # y_trues = []
 
-    for batch in tqdm(datamodule.test_dataloader()):
-        images = batch["image"].to(device)
-        with torch.no_grad():
-            logits = model(images)
-            preds = logits.argmax(dim=1).cpu().numpy()
-        y_pred = preds.ravel()
-        y_true = batch["mask"].cpu().numpy().ravel()
+    # for batch in tqdm(datamodule.test_dataloader()):
+    #     images = batch["image"].to(device)
+    #     with torch.no_grad():
+    #         logits = model(images)
+    #         preds = logits.argmax(dim=1).cpu().numpy()
+    #     y_pred = preds.ravel()
+    #     y_true = batch["mask"].cpu().numpy().ravel()
 
-        mask = y_true != 99
-        y_preds.append(y_pred[mask])
-        y_trues.append(y_true[mask])
+    #     mask = y_true != 99
+    #     y_preds.append(y_pred[mask])
+    #     y_trues.append(y_true[mask])
 
-    # Concatenate all predictions
-    y_preds = np.concatenate(y_preds)
-    y_trues = np.concatenate(y_trues)
+    # # Concatenate all predictions
+    # y_preds = np.concatenate(y_preds)
+    # y_trues = np.concatenate(y_trues)
 
-    f1 = f1_score(y_trues, y_preds, average='macro')
-    precision = precision_score(y_trues, y_preds, average='macro')
-    recall = recall_score(y_trues, y_preds, average='macro')
+    # f1 = f1_score(y_trues, y_preds, average='macro')
+    # precision = precision_score(y_trues, y_preds, average='macro')
+    # recall = recall_score(y_trues, y_preds, average='macro')
 
-    print(f"F1 Score: {f1:.4f}")
-    print(f"Precision: {precision:.4f}")
-    print(f"Recall: {recall:.4f}")
+    # print(f"F1 Score: {f1:.4f}")
+    # print(f"Precision: {precision:.4f}")
+    # print(f"Recall: {recall:.4f}")

@@ -3,4 +3,6 @@ __pycache__/
 logs
 results
 predictions
+predictions_first_test
 lightning_logs
+todo.txt

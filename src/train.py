@@ -3,14 +3,14 @@ import torch
 from lightning.pytorch import Trainer
 from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
 from lightning.pytorch.loggers import TensorBoardLogger
-from .task import CustomSemanticSegmentationTask
+from .task import CustomSemanticSegmentationTask, ChangeStarFarSegTask
 from .datamodule import KH9CdDataModule
 
 
 def train(old_images_dir, new_images_dir, bag_buildings_dir, experiment_name,
           experiment_dir, log_dir, model, backbone, batch_size, patch_size,
           learning_rate, num_dataloader_workers, val_split_pct, test_split_pct,
-          checkpoint_name, aoi):
+          checkpoint_name, aoi, task):
 
     os.makedirs(experiment_dir, exist_ok=True)
     torch.set_float32_matmul_precision('medium')
@@ -26,27 +26,33 @@ def train(old_images_dir, new_images_dir, bag_buildings_dir, experiment_name,
         aoi=aoi,
     )
 
-    task = CustomSemanticSegmentationTask(
-        model=model,
-        backbone=backbone,
-        weights=True,
-        in_channels=4,
-        num_classes=2,
-        loss="ce",
-        ignore_index=99,
-        lr=learning_rate,
-        patience=10
-    )
+    if task == 'baseline':
+        task = CustomSemanticSegmentationTask(
+            model=model,
+            backbone=backbone,
+            weights=True,
+            in_channels=4,
+            num_classes=2,
+            loss="ce",
+            ignore_index=99,
+            lr=learning_rate,
+            patience=10
+        )
+    elif task == 'ChangeStarFarSeg':
+        task = ChangeStarFarSegTask(
+            backbone=backbone,
+            lr=learning_rate,
+        )
 
     checkpoint_callback = ModelCheckpoint(
-        monitor="val_loss",
+        monitor="train_loss",
         dirpath=experiment_dir,
         save_top_k=1,
         save_last=True,
     )
 
     early_stopping_callback = EarlyStopping(
-        monitor="val_loss",
+        monitor="train_loss",
         min_delta=0.00,
         patience=10,
     )
@@ -66,5 +72,6 @@ def train(old_images_dir, new_images_dir, bag_buildings_dir, experiment_name,
         devices=[0],
         precision="16-mixed"
     )
-
+    print(experiment_dir)
+    print(checkpoint_name)
     trainer.fit(model=task, datamodule=datamodule, ckpt_path=checkpoint_name)

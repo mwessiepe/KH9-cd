@@ -19,7 +19,8 @@ This project detects **building changes** over time by comparing historical KH-9
 │   ├── train.py            # Training function
 │   └── test.py             # Test function with metric evaluation
 ├── results/                # Model checkpoints
-└── logs/                   # TensorBoard logs
+├── logs/                   # TensorBoard logs
+└── predictions/            # Building Change Predictions
 ```
 
 ---
