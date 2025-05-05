@@ -3,7 +3,7 @@ from torch import Tensor
 from torch.utils.data import DataLoader
 from torchgeo.samplers import RandomGeoSampler, GridGeoSampler, RandomBatchGeoSampler
 from torchgeo.datasets import IntersectionDataset, stack_samples
-from torchgeo.datasets import random_grid_cell_assignment, random_bbox_assignment
+from torchgeo.datasets import roi_split
 from torchgeo.datasets.utils import BoundingBox
 from torchgeo.datamodules import GeoDataModule
 from lightning.pytorch import LightningDataModule
@@ -13,7 +13,7 @@ from .datasets import KH9Images, AerialImages, BagBuildings, BitemporalIntersect
 
 class KH9CdDataModule(LightningDataModule):
     def __init__(self, old_images_dir, new_images_dir, bag_buildings_dir, batch_size,
-                 num_workers, val_split_pct, test_split_pct, patch_size, aoi: BoundingBox = None,):
+                 num_workers, val_split_pct, test_split_pct, patch_size, rois, aoi: BoundingBox = None,):
         super().__init__()
         self.old_images_dir = old_images_dir
         self.new_images_dir = new_images_dir
@@ -23,6 +23,7 @@ class KH9CdDataModule(LightningDataModule):
         self.val_split_pct = val_split_pct
         self.test_split_pct = test_split_pct
         self.patch_size = patch_size
+        self.rois = rois
         self.aoi = aoi
         self.predict_dataset = None
 
@@ -41,14 +42,10 @@ class KH9CdDataModule(LightningDataModule):
         #     grid_size=9,
         #     generator=torch.Generator().manual_seed(42)
         # )
-        self.train_dataset, self.val_dataset, self.test_dataset = random_bbox_assignment(
-            dataset=combined_dataset,
-            lengths=fractions,
-            generator=torch.Generator().manual_seed(42)
-        )
+        self.train_dataset, self.val_dataset, self.test_dataset = roi_split(combined_dataset, rois=self.rois)
 
         if stage == "predict":
-            self.predict_dataset = IntersectionDataset(old, new)
+            self.predict_dataset = BitemporalIntersectionDataset(old, new, bag_buildings)
 
     def transfer_batch_to_device(self, batch, device, dataloader_idx=0):
         # Move tensor data to the specified device
@@ -60,13 +57,13 @@ class KH9CdDataModule(LightningDataModule):
 
     def train_dataloader(self):
         sampler = RandomBatchGeoSampler(
-            self.train_dataset, size=self.patch_size, length=3500, batch_size=self.batch_size, roi=self.aoi)
+            self.train_dataset, size=self.patch_size, length=2000, batch_size=self.batch_size, roi=self.aoi)
         return DataLoader(self.train_dataset, batch_sampler=sampler,
                           num_workers=self.num_workers, collate_fn=stack_samples, persistent_workers=True)
 
     def val_dataloader(self):
         sampler = RandomBatchGeoSampler(
-            self.val_dataset, size=self.patch_size, length=1500, batch_size=self.batch_size, roi=self.aoi)
+            self.val_dataset, size=self.patch_size, length=500, batch_size=self.batch_size, roi=self.aoi)
         return DataLoader(self.val_dataset, batch_sampler=sampler,
                           num_workers=self.num_workers, collate_fn=stack_samples, persistent_workers=True)
 
@@ -78,6 +75,6 @@ class KH9CdDataModule(LightningDataModule):
 
     def predict_dataloader(self):
         sampler = GridGeoSampler(
-            self.predict_dataset, size=self.patch_size, stride=self.patch_size, roi=self.aoi)
-        return DataLoader(self.predict_dataset, batch_size=1, sampler=sampler,
+            self.predict_dataset, size=self.patch_size, stride=self.patch_size)
+        return DataLoader(self.predict_dataset, batch_size=2, sampler=sampler,
                           num_workers=self.num_workers, collate_fn=stack_samples, persistent_workers=True)

@@ -9,12 +9,12 @@ from rasterio.transform import from_bounds
 from lightning.pytorch import Trainer
 
 from src.datamodule import KH9CdDataModule
-from src.task import CustomSemanticSegmentationTask
+from src.task import CustomSemanticSegmentationTask, ChangeStarFarSegTask
 
 def predict(old_images_dir, new_images_dir, bag_buildings_dir,
             experiment_name, experiment_dir, log_dir, batch_size,
             patch_size, learning_rate, num_dataloader_workers,
-            val_split_pct, test_split_pct, checkpoint_name, aoi):
+            val_split_pct, test_split_pct, checkpoint_name, aoi, task, predictions_dir):
     torch.set_float32_matmul_precision('medium')
 
     # Init datamodule with predict dataset
@@ -33,7 +33,11 @@ def predict(old_images_dir, new_images_dir, bag_buildings_dir,
     datamodule.setup("predict")
 
     checkpoint_path = os.path.join(experiment_dir, checkpoint_name)
-    task = CustomSemanticSegmentationTask.load_from_checkpoint(checkpoint_path)
+    if task == 'baseline':
+        task = CustomSemanticSegmentationTask.load_from_checkpoint(checkpoint_path)
+    elif task == 'ChangeStarFarSeg':
+        task = ChangeStarFarSegTask.load_from_checkpoint(checkpoint_path)
+        task.predictions_dir = predictions_dir
     task.eval()
 
     trainer = Trainer(

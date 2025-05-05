@@ -15,7 +15,7 @@ class AerialImages(RasterDataset):
 
 
 class KH9Images(RasterDataset):
-    filename_glob = '*clip.tif'
+    filename_glob = 'output_feature_*.tif'
     is_image = True
 
 

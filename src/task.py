@@ -193,7 +193,7 @@ class CustomSemanticSegmentationTask(SemanticSegmentationTask):
 
 
 class ChangeStarFarSegTask(LightningModule):
-    def __init__(self, backbone='resnet50', classes=1, lr=1e-3, backbone_pretrained=True):
+    def __init__(self, backbone='resnet50', classes=1, lr=1e-3, backbone_pretrained=True, predictions_dir=None):
         super().__init__()
         self.save_hyperparameters()
         self.model = ChangeStarFarSeg(
@@ -211,6 +211,7 @@ class ChangeStarFarSegTask(LightningModule):
         self.val_f1 = F1Score(task='binary', average='macro')
         self.test_iou = JaccardIndex(task='binary')
         self.test_f1 = F1Score(task='binary', average='macro')
+        self.predictions_dir = predictions_dir
     
     def forward(self, x: torch.Tensor) -> dict:
         return self.model(x)
@@ -329,22 +330,21 @@ class ChangeStarFarSegTask(LightningModule):
             plt.close(fig)
             self.logged_test_images += 1
 
-    def predict_step(self, batch, batch_idx, dataloader_idx=0):
+    def predict_step(self, batch, batch_idx, dataloader_idx=0 ):
         x = batch["image"]
         y_hat_dict = self(x)
         change_prob = y_hat_dict["change_prob"]
         y_hat_hard = (change_prob > 0.5).long().squeeze(1)
         preds = y_hat_hard.cpu()
         
-        predictions_dir = r"C:\masterarbeit\code\predictions"
-        os.makedirs(predictions_dir, exist_ok=True)
+        os.makedirs(self.predictions_dir, exist_ok=True)
         for i, sample in enumerate(unbind_samples({**batch, "prediction": preds})):
             prediction = sample["prediction"].numpy().astype("uint8")
             bounds = sample["bounds"]
             crs = sample["crs"]
             transform = from_bounds(bounds.minx, bounds.miny, bounds.maxx, bounds.maxy,
                                       prediction.shape[1], prediction.shape[0])
-            output_path = os.path.join(predictions_dir, f"pred_{batch_idx:04}_{i}.tif")
+            output_path = os.path.join(self.predictions_dir, f"pred_{batch_idx:04}_{i}.tif")
             with rasterio.open(
                 output_path,
                 "w",

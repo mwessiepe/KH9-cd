@@ -35,7 +35,7 @@ def test(old_images_dir, new_images_dir, bag_buildings_dir, experiment_name,
         task = CustomSemanticSegmentationTask.load_from_checkpoint(checkpoint_path)
     elif task == 'ChangeStarFarSeg':
         task = ChangeStarFarSegTask.load_from_checkpoint(checkpoint_path)
-    task.eval()  # Set the model to evaluation mode
+    task.eval()
 
     # Initialize TensorBoard logger
     tb_logger = TensorBoardLogger(
