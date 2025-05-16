@@ -14,7 +14,7 @@ from src.task import CustomSemanticSegmentationTask, ChangeStarFarSegTask
 def predict(old_images_dir, new_images_dir, bag_buildings_dir,
             experiment_name, experiment_dir, log_dir, batch_size,
             patch_size, learning_rate, num_dataloader_workers,
-            val_split_pct, test_split_pct, checkpoint_name, aoi, task, predictions_dir):
+            val_split_pct, test_split_pct, checkpoint_name, rois, aoi, task, predictions_dir):
     torch.set_float32_matmul_precision('medium')
 
     # Init datamodule with predict dataset
@@ -27,6 +27,7 @@ def predict(old_images_dir, new_images_dir, bag_buildings_dir,
         patch_size=patch_size,
         val_split_pct=val_split_pct,
         test_split_pct=test_split_pct,
+        rois=rois,
         aoi=aoi,
     )
 

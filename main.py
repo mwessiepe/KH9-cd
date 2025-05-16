@@ -49,6 +49,7 @@ if __name__ == "__main__":
 
     # Parameters shared by train and test
     config = {
+        # "old_images_dir": 'C:/masterarbeit/raster/KH-9/amsterdam/georeferenced/', # For predictions
         "old_images_dir": 'C:/masterarbeit/raster/KH-9/amsterdam/georeferenced/filtered',
         "new_images_dir": 'C:/masterarbeit/raster/aerial_images_2023',
         "bag_buildings_dir": 'C:/masterarbeit/vector/buildings',
