@@ -16,6 +16,7 @@ class AerialImages(RasterDataset):
 
 class KH9Images(RasterDataset):
     filename_glob = 'output_feature_*.tif'
+    # filename_glob = '*clip.tif'
     is_image = True
 
 
@@ -38,25 +39,41 @@ class BitemporalIntersectionDataset(GeoDataset):
         return len(self.dataset_new)
     
     def __getitem__(self, query):
-        # Use query (a BoundingBox) to index both the old and new datasets.
+        # Fetch the old & new samples
         sample_old = self.dataset_old[query]
         sample_new = self.dataset_new[query]
-        
-        # Retrieve images.
-        old_img = sample_old["image"]
-        new_img = sample_new["image"]
-        # Transform panchromatic image to 3 channel to allow stacking
-        old_img = old_img.repeat(3, 1, 1)  # Now shape [3, H, W]
-           
-        # Stack the images along a new temporal dimension (T=2).
-        image_pair = torch.stack([old_img, new_img], dim=0)  # shape: [2, C, H, W]
-        
-        # Build output sample with the change mask and geospatial metadata.
-        out_sample = {"image": image_pair, "mask": sample_old["mask"]}
-        out_sample["bounds"] = query  # use query as bounds
-        if "crs" in sample_old:
-            out_sample["crs"] = sample_old["crs"]
-        return out_sample
+
+        # Grab their images & mask
+        old_img = sample_old["image"]               # [C, H, W] (panchromatic)
+        new_img = sample_new["image"]               # [3, H, W] (RGB)
+        mask    = sample_old["mask"]                # [H, W] or [1, H, W]
+
+        # Expand the panchromatic to 3 channels, stack along time
+        old_img = old_img.repeat(3, 1, 1)           # [3, H, W]
+        image_pair = torch.stack([old_img, new_img], dim=0)  # [2, 3, H, W]
+
+        mask = mask.unsqueeze(0)            # [1, 1, H, W]
+        mask = mask.repeat(image_pair.size(0), 1, 1, 1)  # → [2, 1, H, W]
+
+        # Build your output dict
+        out = {
+            "image": image_pair,  # shape [2, 3, H, W]
+            "mask":  mask.unsqueeze(0) if mask.ndim==2 else mask,  # ensure [1,H,W]
+            "bounds": query,
+            **({"crs": sample_old["crs"]} if "crs" in sample_old else {})
+        }
+
+        print(self.transforms)
+        # Apply transforms
+        if self.transforms is not None:
+            # Kornia’s AugmentationSequential with data_keys=["image","mask"]
+            # expects you to pass positional args in the order of data_keys:
+            # i.e. (image_tensor, mask_tensor) → returns (aug_image, aug_mask)
+            aug_image, aug_mask = self.transforms(out["image"], out["mask"])
+            out["image"], out["mask"] = aug_image, aug_mask
+
+        return out
+
 
     @property
     def bounds(self):

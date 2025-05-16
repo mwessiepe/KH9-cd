@@ -8,6 +8,15 @@ from torchgeo.datasets.utils import BoundingBox
 from torchgeo.datamodules import GeoDataModule
 from lightning.pytorch import LightningDataModule
 
+from kornia.augmentation import (
+    RandomHorizontalFlip,
+    RandomVerticalFlip,
+    RandomRotation90,
+    ColorJitter,
+    AugmentationSequential,
+)
+from kornia.constants import Resample
+
 from .datasets import KH9Images, AerialImages, BagBuildings, BitemporalIntersectionDataset
 
 
@@ -26,6 +35,14 @@ class KH9CdDataModule(LightningDataModule):
         self.rois = rois
         self.aoi = aoi
         self.predict_dataset = None
+        self.train_transform = AugmentationSequential(
+            RandomHorizontalFlip(p=0.5, same_on_batch=True),
+            RandomVerticalFlip(p=0.5, same_on_batch=True),
+            RandomRotation90(times=(0,3), resample=Resample.NEAREST, 
+                keepdim=False, p=0.5, same_on_batch=True),
+            # ColorJitter(brightness=0.1, contrast=0.1, saturation=0.1, hue=0.05, p=0.5),
+            data_keys=["image", "mask"],
+        )
 
     def setup(self, stage=None):
         old = KH9Images(self.old_images_dir, res=1)
@@ -33,17 +50,11 @@ class KH9CdDataModule(LightningDataModule):
         bag_buildings = BagBuildings(
             paths=self.bag_buildings_dir, res=1, label_name="change_class")
         # combined_dataset = IntersectionDataset(old, new) & bag_buildings
-        combined_dataset = BitemporalIntersectionDataset(old, new, bag_buildings)
-        fractions = [1 - self.val_split_pct - self.test_split_pct,
-                     self.val_split_pct, self.test_split_pct]
-        # self.train_dataset, self.val_dataset, self.test_dataset = random_grid_cell_assignment(
-        #     dataset=combined_dataset,
-        #     fractions=fractions,
-        #     grid_size=9,
-        #     generator=torch.Generator().manual_seed(42)
-        # )
+        combined_dataset = BitemporalIntersectionDataset(old, new, bag_buildings, transforms=self.train_transform)
+        
         self.train_dataset, self.val_dataset, self.test_dataset = roi_split(combined_dataset, rois=self.rois)
-
+        self.val_dataset.transforms = None
+        self.test_dataset.transforms = None
         if stage == "predict":
             self.predict_dataset = BitemporalIntersectionDataset(old, new, bag_buildings)
 
