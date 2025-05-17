@@ -38,10 +38,10 @@ class KH9CdDataModule(LightningDataModule):
         
 
     def setup(self, stage=None):
-        old = KH9Images(self.old_images_dir, res=1)
-        new = AerialImages(self.new_images_dir, res=1)
+        old = KH9Images(self.old_images_dir)
+        new = AerialImages(self.new_images_dir)
         bag_buildings = BagBuildings(
-            paths=self.bag_buildings_dir, res=1, label_name="change_class")
+            paths=self.bag_buildings_dir, label_name="change_class")
         combined_dataset = IntersectionDataset(old, new) & bag_buildings
         # combined_dataset = BitemporalIntersectionDataset(old, new, bag_buildings)
         
