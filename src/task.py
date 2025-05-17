@@ -12,68 +12,68 @@ from torchgeo.models import ChangeStarFarSeg
 from torchgeo.trainers import SemanticSegmentationTask
 from torchgeo.datasets import unbind_samples
 
-
+from .augmentations import BitemporalAugmentationModule
 
 
 class CustomSemanticSegmentationTask(SemanticSegmentationTask):
+    def __init__(self, *args, **kwargs):
+        # if 'ignore_index' in kwargs:
+        #     del kwargs['ignore']
+        super().__init__(*args, **kwargs)
+
+        self.train_augmentations = BitemporalAugmentationModule()
     
-    def plot(self, sample):
-        image = sample['image']  # shape: [C, H, W] or [1, H, W]
-        mask = sample["mask"]
-        prediction = sample["prediction"]
+    def plot(self, sample: dict):
+        image = sample["image"].squeeze(0)  # [4, H, W]
+        gt_mask = sample["mask"].squeeze(0).numpy()  # [H, W]
 
-        # Split the image into two parts for visualization
-        image1 = image[0:1]  # First channel
-        image2 = image[1:4] if image.shape[0] >= 4 else image  # RGB or as many as possible
+        image1 = image[0].numpy()  # old panchromatic
+        image2 = image[1:4].numpy().transpose(1, 2, 0)  # new RGB
 
-        fig, axs = plt.subplots(nrows=1, ncols=4, figsize=(4 * 5, 5))
+        image2 = torch.clamp(torch.tensor(image2) / 250.0, min=0, max=1).numpy()
 
-        # Display image1 (single channel)
-        axs[0].imshow(image1.squeeze(0), cmap="gray")  # shape [1, H, W] -> [H, W]
+        pred_mask = sample["prediction"].numpy()
+        
+        fig, axs = plt.subplots(1, 4, figsize=(20, 5))
+        axs[0].imshow(image1, cmap='gray')
         axs[0].axis("off")
         axs[0].set_title("Image 1")
-
-        # Display image2 (RGB or 3-band)
-        if image2.shape[0] == 3:
-        # Normalize to [0, 1] if not already in that range
-            if image2.max() > 1.0:
-                image2 = image2 / 255.0
-                # Convert to numpy array and ensure data type is float
-                image2 = image2.permute(1, 2, 0).cpu().numpy().astype(float)
-                axs[1].imshow(image2)
-            elif image2.shape[0] == 1:
-                axs[1].imshow(image2.squeeze(0), cmap="gray")
-            else:
-                axs[1].imshow(image2[0], cmap="gray")
+        axs[1].imshow(image2)
         axs[1].axis("off")
         axs[1].set_title("Image 2")
-
-        # Display ground truth mask
-        axs[2].imshow(mask, cmap="gray")
+        axs[2].imshow(gt_mask, cmap="gray")
         axs[2].axis("off")
-        axs[2].set_title("Mask")
-
-        # Display prediction
-        axs[3].imshow(prediction, cmap="gray")
+        axs[2].set_title("Ground Truth")
+        axs[3].imshow(pred_mask, cmap="gray")
         axs[3].axis("off")
         axs[3].set_title("Prediction")
-
-        plt.tight_layout()
+        plt.tight_layout(rect=[0, 0, 1, 0.96])
         return fig
 
-
-    # The only difference between this code and the same from SemanticSegmentationTask is our redirect to use our own plotting function
     def training_step(self, *args, **kwargs):
         batch = args[0]
         batch_idx = args[1]
 
         x = batch["image"]
         y = batch["mask"]
+
+        # Move to device
+        x = x.to(self.device)
+        y = y.to(self.device)
+
+        # Apply augmentations (ensure model is ready)
+        if self.train_augmentations is not None:
+            self.train_augmentations = self.train_augmentations.to(self.device)
+            x, y = self.train_augmentations(x, y)
+            batch["image"] = x
+            batch["mask"] = y
+
+        y = y.squeeze(1)  # For CrossEntropyLoss: [B, H, W]
+
         y_hat = self.forward(x)
         y_hat_hard = y_hat.argmax(dim=1)
 
         loss = self.criterion(y_hat, y)
-
         self.log("train_loss", loss, on_step=True, on_epoch=False)
         self.train_metrics(y_hat_hard, y)
 
@@ -83,6 +83,7 @@ class CustomSemanticSegmentationTask(SemanticSegmentationTask):
                 batch[key] = batch[key].cpu()
             sample = unbind_samples(batch)[0]
             fig = self.plot(sample)
+            # plt.show()
             summary_writer = self.logger.experiment
             summary_writer.add_figure(
                 f"image/train/{batch_idx}", fig, global_step=self.global_step
@@ -91,12 +92,13 @@ class CustomSemanticSegmentationTask(SemanticSegmentationTask):
 
         return loss
 
+
     # The only difference between this code and the same from SemanticSegmentationTask is our redirect to use our own plotting function
     def validation_step(self, *args, **kwargs):
         batch = args[0]
         batch_idx = args[1]
         x = batch["image"]
-        y = batch["mask"]
+        y = batch["mask"].squeeze(1)
         y_hat = self.forward(x)
         y_hat_hard = y_hat.argmax(dim=1)
 
@@ -122,7 +124,7 @@ class CustomSemanticSegmentationTask(SemanticSegmentationTask):
         batch_idx = args[1]
 
         x = batch["image"]
-        y = batch["mask"]
+        y = batch["mask"].squeeze(1)
         y_hat = self.forward(x)
         y_hat_hard = y_hat.argmax(dim=1)
 
@@ -148,8 +150,6 @@ class CustomSemanticSegmentationTask(SemanticSegmentationTask):
             )
             plt.close()
             self.logged_test_images += 1
-
-
 
     def predict_step(self, batch, batch_idx, dataloader_idx=0):
         x = batch["image"]
@@ -275,7 +275,7 @@ class ChangeStarFarSegTask(LightningModule):
         batch_idx = args[1]
         
         x = batch["image"]
-        y = batch["mask"]
+        y = batch["mask"][:, 0, 0, ...]
         
         y_hat_dict = self.forward(x)
         change_prob = y_hat_dict["change_prob"]
@@ -301,7 +301,7 @@ class ChangeStarFarSegTask(LightningModule):
         batch_idx = args[1]
         
         x = batch["image"]
-        y = batch["mask"]
+        y = batch["mask"][:, 0, 0, ...]
         
         y_hat_dict = self.forward(x)
         change_prob = y_hat_dict["change_prob"]

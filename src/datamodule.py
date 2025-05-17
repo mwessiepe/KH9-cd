@@ -35,28 +35,19 @@ class KH9CdDataModule(LightningDataModule):
         self.rois = rois
         self.aoi = aoi
         self.predict_dataset = None
-        self.train_transform = AugmentationSequential(
-            RandomHorizontalFlip(p=0.5, same_on_batch=True),
-            RandomVerticalFlip(p=0.5, same_on_batch=True),
-            RandomRotation90(times=(0,3), resample=Resample.NEAREST, 
-                keepdim=False, p=0.5, same_on_batch=True),
-            # ColorJitter(brightness=0.1, contrast=0.1, saturation=0.1, hue=0.05, p=0.5),
-            data_keys=["image", "mask"],
-        )
+        
 
     def setup(self, stage=None):
         old = KH9Images(self.old_images_dir, res=1)
         new = AerialImages(self.new_images_dir, res=1)
         bag_buildings = BagBuildings(
             paths=self.bag_buildings_dir, res=1, label_name="change_class")
-        # combined_dataset = IntersectionDataset(old, new) & bag_buildings
-        combined_dataset = BitemporalIntersectionDataset(old, new, bag_buildings, transforms=self.train_transform)
+        combined_dataset = IntersectionDataset(old, new) & bag_buildings
+        # combined_dataset = BitemporalIntersectionDataset(old, new, bag_buildings)
         
         self.train_dataset, self.val_dataset, self.test_dataset = roi_split(combined_dataset, rois=self.rois)
-        self.val_dataset.transforms = None
-        self.test_dataset.transforms = None
         if stage == "predict":
-            self.predict_dataset = BitemporalIntersectionDataset(old, new, bag_buildings)
+            self.predict_dataset = combined_dataset
 
     def transfer_batch_to_device(self, batch, device, dataloader_idx=0):
         # Move tensor data to the specified device
@@ -89,3 +80,4 @@ class KH9CdDataModule(LightningDataModule):
             self.predict_dataset, size=self.patch_size, stride=self.patch_size)
         return DataLoader(self.predict_dataset, batch_size=2, sampler=sampler,
                           num_workers=self.num_workers, collate_fn=stack_samples, persistent_workers=True)
+

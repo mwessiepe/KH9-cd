@@ -39,40 +39,28 @@ class BitemporalIntersectionDataset(GeoDataset):
         return len(self.dataset_new)
     
     def __getitem__(self, query):
-        # Fetch the old & new samples
         sample_old = self.dataset_old[query]
         sample_new = self.dataset_new[query]
 
-        # Grab their images & mask
-        old_img = sample_old["image"]               # [C, H, W] (panchromatic)
-        new_img = sample_new["image"]               # [3, H, W] (RGB)
-        mask    = sample_old["mask"]                # [H, W] or [1, H, W]
+        old_img = sample_old["image"]  # [1, H, W]
+        new_img = sample_new["image"]  # [3, H, W]
 
-        # Expand the panchromatic to 3 channels, stack along time
-        old_img = old_img.repeat(3, 1, 1)           # [3, H, W]
-        image_pair = torch.stack([old_img, new_img], dim=0)  # [2, 3, H, W]
+        image = torch.cat([old_img, new_img], dim=0)  # [4, H, W]
 
-        mask = mask.unsqueeze(0)            # [1, 1, H, W]
-        mask = mask.repeat(image_pair.size(0), 1, 1, 1)  # → [2, 1, H, W]
+        mask = sample_old["mask"]
+        if mask.ndim == 3:
+            mask = mask.squeeze(0)
+        mask = mask.unsqueeze(0)  # [1, H, W]
 
-        # Build your output dict
-        out = {
-            "image": image_pair,  # shape [2, 3, H, W]
-            "mask":  mask.unsqueeze(0) if mask.ndim==2 else mask,  # ensure [1,H,W]
+        if self.transforms is not None:
+            image, mask = self.transforms(image, mask)
+
+        return {
+            "image": image,  # [4, H, W]
+            "mask": mask,    # [1, H, W]
             "bounds": query,
             **({"crs": sample_old["crs"]} if "crs" in sample_old else {})
         }
-
-        print(self.transforms)
-        # Apply transforms
-        if self.transforms is not None:
-            # Kornia’s AugmentationSequential with data_keys=["image","mask"]
-            # expects you to pass positional args in the order of data_keys:
-            # i.e. (image_tensor, mask_tensor) → returns (aug_image, aug_mask)
-            aug_image, aug_mask = self.transforms(out["image"], out["mask"])
-            out["image"], out["mask"] = aug_image, aug_mask
-
-        return out
 
 
     @property
